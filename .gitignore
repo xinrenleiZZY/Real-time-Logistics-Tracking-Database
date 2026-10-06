@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/logs/
+data/server.pid
+data/STOP_WATCHDOG
+logs/
+.pytest_cache/

@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>物流追踪实时库</title>
+<style>
+  /* ─── 主题变量（与 UPC 使用情况实时库一致） ─── */
+  :root {
+    --bg-primary: #f7f8fa;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eef1f4;
+    --border-color: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #57606a;
+    --text-tertiary: #8b949e;
+    --accent-blue: #0969da;
+    --accent-green: #1a7f37;
+    --accent-red: #cf222e;
+    --accent-orange: #9a6700;
+    --card-bg: #ffffff;
+    --card-shadow: 0 1px 3px rgba(31,35,40,.08), 0 1px 2px rgba(31,35,40,.04);
+    --hover-bg: #f3f4f6;
+    --code-bg: #0d1117;
+    --code-text: #e6edf3;
+    --endspace-accent: #0969da;
+    --endspace-accent-dim: rgba(9,105,218,.12);
+    --grid-color: rgba(9,105,218,.035);
+    --shadow-md: 0 10px 30px rgba(31,35,40,.16);
+    --radius: 12px;
+  }
+  body.dark {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border-color: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #9da7b3;
+    --text-tertiary: #7d8590;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-orange: #d29922;
+    --card-bg: #161b22;
+    --card-shadow: 0 1px 3px rgba(0,0,0,.35);
+    --hover-bg: #21262d;
+    --code-bg: #010409;
+    --code-text: #e6edf3;
+    --endspace-accent: #58a6ff;
+    --endspace-accent-dim: rgba(88,166,255,.14);
+    --grid-color: rgba(88,166,255,.03);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+      "Microsoft YaHei", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    transition: background-color .25s, color .25s;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
+
+  /* ─── 顶栏 ─── */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding: 12px 26px;
+    background: color-mix(in srgb, var(--card-bg) 86%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .logo {
+    width: 44px; height: 44px; flex: 0 0 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px; color: #fff; font-weight: 800; font-size: 17px;
+    background: linear-gradient(135deg, #0969da, #1f883d);
+    box-shadow: 0 5px 16px var(--endspace-accent-dim);
+  }
+  .brand h1 {
+    margin: 0; font-size: 18px; font-weight: 700;
+    background: linear-gradient(90deg, var(--text-primary), var(--endspace-accent));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand .sub { margin-top: 2px; font-size: 12px; color: var(--text-tertiary); }
+  .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #tokenBox {
+    width: 190px; padding: 7px 12px; border: 1px solid var(--border-color);
+    border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);
+    font-size: 13px; outline: none;
+  }
+  #tokenBox:focus { border-color: var(--endspace-accent); box-shadow: 0 0 0 3px var(--endspace-accent-dim); }
+
+  /* ─── 按钮 ─── */
+  .hzx-btn {
+    background: transparent; border: 1.5px solid var(--endspace-accent);
+    color: var(--endspace-accent); padding: 7px 16px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all .2s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .hzx-btn:hover:not(:disabled) {
+    background: var(--endspace-accent); color: #fff;
+    box-shadow: 0 4px 14px var(--endspace-accent-dim);
+    transform: translateY(-1px);
+  }
+  .hzx-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .hzx-btn.soft {
+    border-color: var(--border-color); color: var(--text-secondary);
+    background: var(--bg-secondary);
+  }
+  .hzx-btn.soft:hover:not(:disabled) {
+    border-color: var(--endspace-accent); color: var(--endspace-accent);
+    background: var(--endspace-accent-dim); transform: none;
+  }
+  a.link-doc { text-decoration: none; }
+
+  main { position: relative; z-index: 1; max-width: 1560px; margin: 0 auto; padding: 22px 26px 70px; }
+
+  /* ─── 统计卡片 ─── */
+  .cards {
+    display: grid; gap: 14px; margin-bottom: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  }
+  .card {
+    position: relative; overflow: hidden;
+    background: var(--card-bg); border: 1px solid var(--border-color);
+    border-radius: var(--radius); padding: 13px 16px 11px;
+    box-shadow: var(--card-shadow);
+    transition: all .25s cubic-bezier(.4,0,.2,1);
+  }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent 85%);
+    opacity: .9;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--endspace-accent);
+    box-shadow: 0 8px 20px var(--endspace-accent-dim);
+  }
+  .card .label { font-size: 12px; color: var(--text-tertiary); }
+  .card .num {
+    margin-top: 5px; font-size: 25px; font-weight: 800;
+    font-variant-numeric: tabular-nums; color: var(--accent);
+  }
+  .card .note {
+    font-size: 11px; color: var(--text-tertiary); margin-top: 3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ─── 导航页签 ─── */
+  .tabs {
+    display: flex; gap: 4px; padding: 6px;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 12px; width: fit-content; max-width: 100%;
+    overflow-x: auto; margin-bottom: 16px;
+  }
+  .tab {
+    border: none; background: transparent; color: var(--text-secondary);
+    padding: 8px 18px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500; white-space: nowrap;
+    transition: all .18s;
+  }
+  .tab:hover { color: var(--text-primary); background: var(--hover-bg); }
+  .tab.active {
+    background: var(--card-bg); color: var(--endspace-accent);
+    font-weight: 700; box-shadow: var(--card-shadow);
+  }
+
+  /* ─── 面板 ─── */
+  .panel {
+    background: var(--card-bg); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 18px; box-shadow: var(--card-shadow);
+    margin-bottom: 18px;
+  }
+  .view-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .view-title { margin: 0; font-size: 15px; font-weight: 700; }
+  .view-title small { font-weight: 400; color: var(--text-tertiary); margin-left: 8px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input[type="search"], input[type="text"], input[type="date"], select, textarea {
+    padding: 7px 12px; border: 1px solid var(--border-color); border-radius: 8px;
+    background: var(--bg-secondary); color: var(--text-primary);
+    font-size: 13px; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--endspace-accent);
+    box-shadow: 0 0 0 3px var(--endspace-accent-dim);
+  }
+  textarea { min-width: 320px; min-height: 86px; font-family: ui-monospace, Consolas, monospace; resize: vertical; }
+  .toolbar label {
+    display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary);
+    font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  .filters {
+    display: grid; gap: 12px; margin-bottom: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+  .filters label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-tertiary); }
+
+  /* ─── 表格 ─── */
+  .table-scroll {
+    overflow: auto; max-height: 620px;
+    border: 1px solid var(--border-color); border-radius: 10px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--bg-secondary); color: var(--text-secondary);
+    font-weight: 600; font-size: 12px; text-align: left;
+    padding: 10px 12px; border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+  }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background-color .12s; }
+  tbody tr:hover td { background: var(--hover-bg); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .ellip {
+    display: inline-block; max-width: 220px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+  }
+  .ellip.wide { max-width: 340px; }
+  .empty { text-align: center; color: var(--text-tertiary); padding: 42px 0; font-size: 13px; }
+  .pager {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 8px; margin-top: 14px; color: var(--text-secondary); font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .sub-panel { margin-top: 22px; }
+  .sub-panel:first-child { margin-top: 0; }
+  .sub-title { font-size: 13px; font-weight: 700; margin: 0 0 10px; }
+
+  /* ─── 状态徽标 ─── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 10px; border-radius: 999px; font-size: 12px;
+    white-space: nowrap; line-height: 1.6;
+  }
+  .pill.good { background: rgba(63,185,80,.14); color: var(--accent-green); }
+  .pill.warn { background: rgba(210,153,34,.16); color: var(--accent-orange); }
+  .pill.bad  { background: rgba(248,81,73,.13); color: var(--accent-red); }
+  .pill.info { background: var(--endspace-accent-dim); color: var(--endspace-accent); }
+  .pill.gray { background: var(--bg-tertiary); color: var(--text-tertiary); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+  /* ─── Toast ─── */
+  .toast {
+    position: fixed; top: 22px; right: 24px; z-index: 200; max-width: 460px;
+    background: var(--code-bg); color: #fff; border-radius: 10px;
+    padding: 11px 16px; font-size: 13px; box-shadow: var(--shadow-md);
+    opacity: 0; transform: translateY(-8px); transition: all .2s;
+    border-left: 4px solid var(--accent-green);
+  }
+  .toast.err { border-left-color: var(--accent-red); }
+  .toast.show { opacity: 1; transform: none; }
+
+  @media (max-width: 860px) {
+    main { padding: 14px 12px 60px; }
+    .topbar { padding: 12px 14px; }
+    .tabs { width: 100%; }
+    textarea { min-width: 100%; }
+    #tokenBox { width: 150px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">物流</div>
+    <div>
+      <h1>物流追踪实时库</h1>
+      <div class="sub">物流单跟踪 Excel / JSON 推送 · 到货时间 = 预计到港 + 14 天</div>
+    </div>
+  </div>
+  <div class="top-actions">
+    <input id="tokenBox" type="password" placeholder="API Token（可选）" title="配置了 API_TOKEN 时填写">
+    <button class="hzx-btn soft" id="themeBtn" title="切换深浅色">◐ 主题</button>
+    <a class="hzx-btn soft link-doc" href="/docs" target="_blank">API 文档</a>
+  </div>
+</header>
+
+<main>
+  <nav class="tabs">
+    <button class="tab active" data-tab="dashboard">仪表盘</button>
+    <button class="tab" data-tab="arrival">ASIN 到货查询</button>
+    <button class="tab" data-tab="records">物流表查询</button>
+    <button class="tab" data-tab="export">全量导出 [ASIN,time]</button>
+    <button class="tab" data-tab="logs">导入 / 推送记录</button>
+  </nav>
+
+  <!-- 仪表盘 -->
+  <section class="panel" id="view-dashboard">
+    <div class="view-head">
+      <h3 class="view-title">仪表盘<small>物流追踪实时库核心统计</small></h3>
+      <button class="hzx-btn soft" id="dashboardRefreshBtn">刷新统计</button>
+    </div>
+    <section class="cards" id="cards"></section>
+    <div class="muted" style="font-size:12px;color:var(--text-tertiary)">
+      数据来源：E:\ZY2026\物流单跟踪\output Excel 导入 + 其他系统 JSON 推送；所有表行保留历史不覆盖，到货时间 = 预计到港 + 14 天。
+    </div>
+  </section>
+
+  <!-- ASIN 到货查询 -->
+  <section class="panel" id="view-arrival" style="display:none">
+    <div class="view-head">
+      <h3 class="view-title">按 ASIN 查询到货时间<small>单个或多个 ASIN，返回每个货件的预计到港与到货时间</small></h3>
+      <button class="hzx-btn soft" id="exampleBtn">填入示例 ASIN</button>
+    </div>
+    <div class="filters" style="grid-template-columns: 1.2fr 1fr">
+      <label>ASIN（逗号 / 分号 / 换行分隔，最多 200 个）
+        <textarea id="asinsBox" placeholder="例如：&#10;B08DNLTQQ3&#10;B0H5VPQMN3"></textarea>
+      </label>
+      <div>
+        <label style="flex-direction:row;margin:2px 0 8px"><input type="checkbox" id="upcomingOnly"> 只看今天及之后到货</label>
+        <div class="toolbar">
+          <label>起 <input type="date" id="qStart"></label>
+          <label>止 <input type="date" id="qEnd"></label>
+          <button class="hzx-btn" id="queryBtn">查询</button>
+          <button class="hzx-btn soft" id="detailCsvBtn">明细 CSV</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>ASIN</th><th>货件单号</th><th>品名</th><th>发货量</th><th>物流渠道</th>
+          <th>开船时间</th><th>预计到港</th><th>到货时间</th><th>是否查验</th><th>来源文件</th>
+        </tr></thead>
+        <tbody id="arrivalBody"><tr><td colspan="10" class="empty">输入 ASIN 后点击“查询”</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pager" id="arrivalPager"></div>
+  </section>
+
+  <!-- 物流表查询 -->
+  <section class="panel" id="view-records" style="display:none">
+    <div class="view-head">
+      <h3 class="view-title">物流表数据查询<small>物流跟踪表 / 未开船物流表 / 货件号重查物流表合并结果</small></h3>
+    </div>
+    <div class="filters">
+      <label>ASIN（精确）<input type="search" id="fAsin" placeholder="B08DNLTQQ3"></label>
+      <label>货件单号（模糊）<input type="search" id="fShipment" placeholder="FBA19…"></label>
+      <label>关键字（品名/渠道/跟踪号/货件号）<input type="search" id="fKeyword" placeholder="万圣节 / Fedex…"></label>
+      <label>预计到港
+        <select id="fEta">
+          <option value="">全部</option>
+          <option value="true">有预计到港时间</option>
+          <option value="false">无预计到港时间</option>
+        </select>
+      </label>
+      <label>预计到港起 <input type="date" id="fEtaFrom"></label>
+      <label>预计到港止 <input type="date" id="fEtaTo"></label>
+      <label>来源文件（模糊）<input type="search" id="fSource" placeholder="物流跟踪表"></label>
+    </div>
+    <div class="toolbar">
+      <button class="hzx-btn" id="recordsSearchBtn">查询</button>
+      <button class="hzx-btn soft" id="recordsCsvBtn">下载当前页 CSV</button>
+    </div>
+    <div class="table-scroll" style="margin-top:14px">
+      <table>
+        <thead><tr>
+          <th>ASIN</th><th>货件单号</th><th>品名</th><th>发货量</th><th>物流渠道</th>
+          <th>跟踪编号</th><th>开船时间</th><th>预计到港</th><th>到货时间</th>
+          <th>是否查验</th><th>来源文件</th><th>更新时间</th>
+        </tr></thead>
+        <tbody id="recordsBody"><tr><td colspan="12" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pager" id="recordsPager"></div>
+  </section>
+
+  <!-- 全量导出 -->
+  <section class="panel" id="view-export" style="display:none">
+    <div class="view-head">
+      <h3 class="view-title">全量 [ASIN, time] 导出<small>供其他系统按 (ASIN, time) 入库</small></h3>
+      <button class="hzx-btn soft" id="pairsCsvBtn">下载 CSV</button>
+    </div>
+    <div class="toolbar">
+      <label><input type="checkbox" id="earliestOnly"> 每个 ASIN 只返回最早一条</label>
+      <label><input type="checkbox" id="exportUpcoming"> 只看今天及之后</label>
+      <label>起 <input type="date" id="eStart"></label>
+      <label>止 <input type="date" id="eEnd"></label>
+      <button class="hzx-btn" id="exportBtn">获取全量到货时间</button>
+    </div>
+    <div class="table-scroll" style="margin-top:14px">
+      <table>
+        <thead><tr><th>ASIN</th><th>到货时间 time</th></tr></thead>
+        <tbody id="exportBody"><tr><td colspan="2" class="empty">点击“获取全量到货时间”</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pager" id="exportPager"></div>
+  </section>
+
+  <!-- 导入/推送记录 -->
+  <section class="panel" id="view-logs" style="display:none">
+    <div class="view-head">
+      <h3 class="view-title">导入 / 推送记录<small>Excel 一次性导入与各来源 JSON 推送的最近 50 条</small></h3>
+      <button class="hzx-btn soft" id="logsRefreshBtn">刷新</button>
+    </div>
+
+    <div class="sub-panel">
+      <h4 class="sub-title">Excel 导入批次</h4>
+      <div class="table-scroll" style="max-height:300px">
+        <table>
+          <thead><tr><th>批次号</th><th>时间</th><th>来源目录</th><th>总行数</th><th>新增</th><th>更新</th><th>跳过</th><th>状态</th><th>错误</th></tr></thead>
+          <tbody id="importBody"><tr><td colspan="9" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sub-panel">
+      <h4 class="sub-title">JSON 推送记录</h4>
+      <div class="table-scroll" style="max-height:300px">
+        <table>
+          <thead><tr><th>来源</th><th>push_id</th><th>接收时间</th><th>总条数</th><th>新增</th><th>更新</th><th>拒绝</th></tr></thead>
+          <tbody id="pushBody"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const PAGE_SIZE = 50;
+
+const detail = { rows: [], pairs: [], records: [], recordsPage: 1, recordsTotal: 0 };
+
+function esc(v) {
+  if (v === null || v === undefined) return "";
+  return String(v).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function fmt(v) {
+  if (v === null || v === undefined || v === "") return "—";
+  return v;
+}
+
+function toast(message, type = "ok") {
+  const el = $("#toast");
+  el.textContent = message;
+  el.className = "toast show " + (type === "err" ? "err" : "");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("show"), type === "err" ? 6000 : 3200);
+}
+
+function token() { return $("#tokenBox").value.trim(); }
+
+async function api(path, options = {}) {
+  const headers = Object.assign({}, options.headers || {});
+  const tk = token();
+  if (tk) headers["X-API-Token"] = tk;
+  const resp = await fetch(path, Object.assign({}, options, { headers }));
+  let j = null;
+  try { j = await resp.json(); } catch (e) { j = null; }
+  if (!resp.ok || !j || typeof j !== "object" || !("code" in j)) {
+    const msg = j && (j.message || j.detail) ? (j.detail ? JSON.stringify(j.detail) : j.message) : ("HTTP " + resp.status);
+    throw new Error(msg);
+  }
+  if (j.code !== 0) throw new Error(j.message || "接口错误");
+  return j;
+}
+
+function statusPill(text) {
+  const t = text || "";
+  let cls = "gray", dot = "";
+  if (["success", "已完成", "已放行"].includes(t)) { cls = "good"; dot = '<span class="dot" style="background:var(--accent-green)"></span>'; }
+  else if (["running", "pending", "查验中"].includes(t)) { cls = "warn"; dot = '<span class="dot" style="background:var(--accent-orange)"></span>'; }
+  else if (["failed", "error", "失败"].includes(t)) { cls = "bad"; dot = '<span class="dot" style="background:var(--accent-red)"></span>'; }
+  return '<span class="pill ' + cls + '">' + dot + esc(t || "未知") + "</span>";
+}
+
+function ellip(v, max = 220) {
+  const text = v === null || v === undefined ? "" : String(v);
+  return '<span class="mono ellip" style="max-width:' + max + 'px" title="' + esc(text) + '">' + esc(text) + "</span>";
+}
+
+function downloadCsv(filename, headers, rows) {
+  const q = (v) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const csv = "\uFEFF" + [headers, ...rows].map((r) => r.map(q).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/* ─── 主题与页签 ─── */
+if (localStorage.getItem("logistics_dark") === "1") document.body.classList.add("dark");
+$("#themeBtn").onclick = () => {
+  const dark = document.body.classList.toggle("dark");
+  localStorage.setItem("logistics_dark", dark ? "1" : "0");
+};
+$("#tokenBox").value = localStorage.getItem("logistics_token") || "";
+$("#tokenBox").addEventListener("input", () => localStorage.setItem("logistics_token", $("#tokenBox").value));
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  ["dashboard", "arrival", "records", "export", "logs"].forEach((id) => { $("#view-" + id).style.display = id === name ? "block" : "none"; });
+  if (name === "records" && !detail.recordsLoaded) { detail.recordsLoaded = true; loadRecords(1); }
+  if (name === "export" && !detail.exportLoaded) { detail.exportLoaded = true; loadExport(); }
+  if (name === "logs" && !detail.logsLoaded) { detail.logsLoaded = true; loadLogs(); }
+}
+document.querySelectorAll(".tab").forEach((b) => b.onclick = () => switchTab(b.dataset.tab));
+$("#dashboardRefreshBtn").onclick = () => loadSummary().catch((e) => toast(e.message, "err"));
+
+/* ─── 汇总卡片 ─── */
+async function loadSummary() {
+  const j = await api("/api/ui/summary");
+  const d = j.data;
+  const cards = [
+    { label: "所有表行数", num: d.total_file_rows, note: "Excel/推送原始记录，不覆盖", color: "var(--accent-blue)" },
+    { label: "当前货件记录", num: d.total_records, note: "按 (货件单号, ASIN) 最新快照", color: "var(--accent-green)" },
+    { label: "有到港时间", num: d.records_with_eta, note: "当前快照中可计算到货", color: "var(--accent-orange)" },
+    { label: "ASIN 数量", num: d.distinct_asins, note: "当前快照覆盖货件", color: "var(--accent-green)" },
+    { label: "到货时间", num: "+" + (d.arrival_offset_days || 14) + " 天", note: "预计到港后固定天数", color: "var(--accent-blue)" },
+    { label: "最近 Excel 导入", num: d.last_import ? d.last_import.total : 0, note: d.last_import ? (d.last_import.batch_id || "") : "暂无", color: "var(--accent-blue)" },
+    { label: "最近 JSON 推送", num: d.last_push ? d.last_push.total : 0, note: d.last_push ? (d.last_push.source + " / " + (d.last_push.push_id || "")) : "暂无", color: "var(--accent-orange)" },
+  ];
+  $("#cards").innerHTML = cards.map((c) =>
+    '<div class="card" style="--accent:' + c.color + '">' +
+    '<div class="label">' + esc(c.label) + '</div>' +
+    '<div class="num">' + c.num + "</div>" +
+    '<div class="note" title="' + esc(c.note) + '">' + esc(c.note) + "</div></div>"
+  ).join("");
+}
+
+/* ─── ASIN 到货查询 ─── */
+function asinList() {
+  return $("#asinsBox").value
+    .split(/[\s,，;；]+/)
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 200);
+}
+
+function arrivalParams() {
+  const p = new URLSearchParams();
+  if ($("#upcomingOnly").checked) p.set("upcoming_only", "true");
+  if ($("#qStart").value) p.set("start_date", $("#qStart").value);
+  if ($("#qEnd").value) p.set("end_date", $("#qEnd").value);
+  return p;
+}
+
+async function queryArrival() {
+  const list = asinList();
+  if (!list.length) { toast("请先输入至少一个 ASIN", "err"); return; }
+  const btn = $("#queryBtn");
+  btn.disabled = true;
+  try {
+    const p = arrivalParams();
+    p.set("asins", list.join(","));
+    const j = await api("/api/v1/arrival/query?" + p.toString());
+    detail.rows = j.data.items || [];
+    renderArrival();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderArrival() {
+  const body = $("#arrivalBody");
+  if (!detail.rows.length) {
+    body.innerHTML = '<tr><td colspan="10" class="empty">没有匹配的到货时间记录</td></tr>';
+  } else {
+    body.innerHTML = detail.rows.map((r) =>
+      "<tr>" +
+      "<td>" + ellip(r.asin, 130) + "</td>" +
+      "<td>" + ellip(r.shipment_id, 160) + "</td>" +
+      "<td>" + ellip(r.product_name, 220) + "</td>" +
+      "<td>" + esc(fmt(r.quantity)) + "</td>" +
+      "<td>" + ellip(r.channel, 190) + "</td>" +
+      "<td>" + esc(fmt(r.sailing_date)) + "</td>" +
+      "<td>" + esc(fmt(r.eta_date)) + "</td>" +
+      '<td><strong>' + esc(fmt(r.arrival_date)) + "</strong></td>" +
+      "<td>" + esc(fmt(r.inspection)) + "</td>" +
+      "<td>" + ellip(r.source_file, 190) + "</td></tr>"
+    ).join("");
+  }
+  $("#arrivalPager").innerHTML = '<span>共 ' + detail.rows.length + " 条明细</span>";
+}
+
+function downloadArrivalCsv() {
+  if (!detail.rows.length) { toast("请先查询", "err"); return; }
+  downloadCsv("ASIN到货时间明细.csv",
+    ["ASIN", "货件单号", "品名", "发货量", "物流渠道", "开船时间", "预计到港", "到货时间", "是否查验", "来源文件"],
+    detail.rows.map((r) => [r.asin, r.shipment_id, r.product_name, r.quantity, r.channel, r.sailing_date, r.eta_date, r.arrival_date, r.inspection, r.source_file]));
+}
+$("#queryBtn").onclick = queryArrival;
+$("#detailCsvBtn").onclick = downloadArrivalCsv;
+$("#exampleBtn").onclick = () => { $("#asinsBox").value = "B08DNLTQQ3, B0H5VPQMN3"; queryArrival(); };
+$("#asinsBox").addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") queryArrival(); });
+
+/* ─── 物流表数据查询 ─── */
+async function loadRecords(page) {
+  const p = new URLSearchParams();
+  if ($("#fAsin").value.trim()) p.set("asin", $("#fAsin").value.trim());
+  if ($("#fShipment").value.trim()) p.set("shipment_id", $("#fShipment").value.trim());
+  if ($("#fKeyword").value.trim()) p.set("keyword", $("#fKeyword").value.trim());
+  if ($("#fEta").value) p.set("has_eta", $("#fEta").value);
+  if ($("#fEtaFrom").value) p.set("eta_from", $("#fEtaFrom").value);
+  if ($("#fEtaTo").value) p.set("eta_to", $("#fEtaTo").value);
+  if ($("#fSource").value.trim()) p.set("source_file", $("#fSource").value.trim());
+  p.set("page", Math.max(1, page || 1));
+  p.set("page_size", PAGE_SIZE);
+  const j = await api("/api/ui/records?" + p.toString());
+  detail.records = j.data.items || [];
+  detail.recordsPage = j.data.page || 1;
+  detail.recordsTotal = j.data.total || 0;
+  renderRecords();
+}
+
+function renderRecords() {
+  const body = $("#recordsBody");
+  if (!detail.records.length) {
+    body.innerHTML = '<tr><td colspan="12" class="empty">没有匹配的物流记录</td></tr>';
+  } else {
+    body.innerHTML = detail.records.map((r) =>
+      "<tr>" +
+      "<td>" + ellip(r.asin, 120) + "</td>" +
+      "<td>" + ellip(r.shipment_id, 160) + "</td>" +
+      "<td>" + ellip(r.product_name, 230) + "</td>" +
+      "<td>" + esc(fmt(r.quantity)) + "</td>" +
+      "<td>" + ellip(r.channel, 190) + "</td>" +
+      "<td>" + ellip(r.tracking_numbers, 150) + "</td>" +
+      "<td>" + esc(fmt(r.sailing_date)) + "</td>" +
+      "<td>" + esc(fmt(r.eta_date)) + "</td>" +
+      '<td><strong>' + esc(fmt(r.arrival_date)) + "</strong></td>" +
+      "<td>" + esc(fmt(r.inspection)) + "</td>" +
+      "<td>" + ellip(r.source_file, 180) + "</td>" +
+      "<td>" + esc(fmt(r.last_updated_at)) + "</td></tr>"
+    ).join("");
+  }
+  const pages = Math.max(1, Math.ceil(detail.recordsTotal / PAGE_SIZE));
+  $("#recordsPager").innerHTML =
+    '<span>共 ' + detail.recordsTotal + " 条 · 第 " + detail.recordsPage + " / " + pages + " 页</span>" +
+    '<button class="hzx-btn soft" id="recordsPrev" ' + (detail.recordsPage <= 1 ? "disabled" : "") + ">上一页</button>" +
+    '<button class="hzx-btn soft" id="recordsNext" ' + (detail.recordsPage >= pages ? "disabled" : "") + ">下一页</button>";
+  const prev = $("#recordsPrev"), next = $("#recordsNext");
+  if (prev) prev.onclick = () => loadRecords(detail.recordsPage - 1);
+  if (next) next.onclick = () => loadRecords(detail.recordsPage + 1);
+}
+
+function downloadRecordsCsv() {
+  if (!detail.records.length) { toast("请先查询", "err"); return; }
+  downloadCsv("物流表查询_第" + detail.recordsPage + "页.csv",
+    ["ASIN", "货件单号", "品名", "发货量", "物流渠道", "跟踪编号", "开船时间", "预计到港", "到货时间", "是否查验", "来源文件", "更新时间"],
+    detail.records.map((r) => [r.asin, r.shipment_id, r.product_name, r.quantity, r.channel, r.tracking_numbers, r.sailing_date, r.eta_date, r.arrival_date, r.inspection, r.source_file, r.last_updated_at]));
+}
+$("#recordsSearchBtn").onclick = () => loadRecords(1).catch((e) => toast(e.message, "err"));
+$("#recordsCsvBtn").onclick = downloadRecordsCsv;
+document.querySelectorAll("#fAsin, #fShipment, #fKeyword, #fSource").forEach((el) =>
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#recordsSearchBtn").click(); }));
+
+/* ─── 全量导出 ─── */
+async function loadExport() {
+  const p = new URLSearchParams();
+  if ($("#earliestOnly").checked) p.set("earliest_only", "true");
+  if ($("#exportUpcoming").checked) p.set("upcoming_only", "true");
+  if ($("#eStart").value) p.set("start_date", $("#eStart").value);
+  if ($("#eEnd").value) p.set("end_date", $("#eEnd").value);
+  const btn = $("#exportBtn");
+  btn.disabled = true;
+  try {
+    const j = await api("/api/v1/arrival/export?" + p.toString());
+    detail.pairs = j.data.items || [];
+    renderExport();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderExport() {
+  const body = $("#exportBody");
+  body.innerHTML = detail.pairs.length
+    ? detail.pairs.map((r) => "<tr><td>" + ellip(r.asin, 150) + "</td><td><strong>" + esc(r.time) + "</strong></td></tr>").join("")
+    : '<tr><td colspan="2" class="empty">暂无到货时间数据</td></tr>';
+  $("#exportPager").innerHTML = "<span>共 " + detail.pairs.length + " 条 [ASIN, time]</span>";
+}
+
+function downloadPairsCsv() {
+  if (!detail.pairs.length) { toast("请先获取全量数据", "err"); return; }
+  downloadCsv("物流追踪_ASIN到货时间.csv", ["ASIN", "time"], detail.pairs.map((r) => [r.asin, r.time]));
+}
+$("#exportBtn").onclick = loadExport;
+$("#pairsCsvBtn").onclick = downloadPairsCsv;
+
+/* ─── 导入 / 推送记录 ─── */
+async function loadLogs() {
+  const [imp, push] = await Promise.all([
+    api("/api/ui/import-logs?page=1&page_size=50"),
+    api("/api/ui/push-logs?page=1&page_size=50"),
+  ]);
+  const ib = imp.data.items || [];
+  const pb = push.data.items || [];
+  $("#importBody").innerHTML = ib.length
+    ? ib.map((r) =>
+        "<tr>" +
+        "<td>" + ellip(r.batch_id, 180) + "</td>" +
+        "<td>" + esc(fmt(r.finished_at || r.started_at)) + "</td>" +
+        "<td>" + ellip(r.source, 250) + "</td>" +
+        "<td>" + r.total + "</td><td>" + r.inserted + "</td><td>" + r.updated + "</td><td>" + r.skipped + "</td>" +
+        "<td>" + statusPill(r.status) + "</td>" +
+        "<td>" + ellip(r.error, 120) + "</td></tr>"
+      ).join("")
+    : '<tr><td colspan="9" class="empty">暂无 Excel 导入记录</td></tr>';
+  $("#pushBody").innerHTML = pb.length
+    ? pb.map((r) =>
+        "<tr>" +
+        "<td>" + ellip(r.source, 180) + "</td>" +
+        "<td>" + ellip(r.push_id, 240) + "</td>" +
+        "<td>" + esc(fmt(r.received_at)) + "</td>" +
+        "<td>" + r.total + "</td><td>" + r.inserted + "</td><td>" + r.updated + "</td><td>" + r.rejected + "</td></tr>"
+      ).join("")
+    : '<tr><td colspan="7" class="empty">暂无 JSON 推送记录</td></tr>';
+}
+$("#logsRefreshBtn").onclick = () => loadLogs().catch((e) => toast(e.message, "err"));
+
+/* ─── 初始化 ─── */
+loadSummary().catch((e) => toast("加载汇总失败：" + e.message, "err"));
+</script>
+</body>
+</html>
